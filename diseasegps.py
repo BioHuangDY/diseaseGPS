@@ -41,6 +41,7 @@ else:
     import configparser
 
 paras = {}
+triplet_dict = {}
 
 
 def ConfigSectionMap(config, section):
@@ -97,6 +98,21 @@ def flip_freq(feature1=0, feature2=0, feature3=0, feature4=0):
         return False
     else:
         return True
+
+
+def flip_genotype(genotype, genes, func, exonicfunc, compound_dict):
+    flag = False
+    for gene in genes.split(';'):
+        if triplet_dict.__contains__((gene, genotype)):
+            flag = True
+        else:
+            if genotype == "het" and compound_dict[gene] >= 2:
+                genotype2 = "compound_het"
+                if triplet_dict.__contains__(
+                    (gene, genotype2)
+                ) and func != 'intronic' and exonicfunc != 'synonymous SNV':
+                    flag = True
+    return flag
 
 
 ########### 检查数据库中的所有数据是否完整 ###########
@@ -227,6 +243,12 @@ def prescreen_frequence(anvfile):
     Freqs_flgs = {}
     for dbfreq in dfreqs.split():
         Freqs_flgs[dbfreq] = 0
+    Gene_flgs = {
+        'Otherinfo': 0,
+        'Gene.refGene': 0,
+        'ExonicFunc.refGene': 0,
+        'Func.refGene': 0
+    }
 
     # Freqs_flgs = {
     #     'esp6500siv2_all': 0,
@@ -238,6 +260,28 @@ def prescreen_frequence(anvfile):
         fh = open(anvfile, "r")
         fw = open(newoutfile, "w")
         strs = fh.read()
+        # 新增的compound统计部分
+        line_sum = 0
+        compound_dict = {}
+        for line in strs.split('\n'):
+            cls = line.split('\t')
+            if len(cls) < 2: break
+            if line_sum == 0:
+                search_key_index(line, Gene_flgs)
+            else:
+                for gene in cls[Gene_flgs['Gene.refGene']].split(';'):
+                    if cls[Gene_flgs['Func.refGene']] != 'intronic' and cls[
+                            Gene_flgs[
+                                'ExonicFunc.refGene']] != 'synonymous SNV':
+                        if not compound_dict.__contains__(gene):
+                            compound_dict[gene] = 1
+                        else:
+                            compound_dict[gene] += 1
+                    else:
+                        if not compound_dict.__contains__(gene):
+                            compound_dict[gene] = 0
+            line_sum += 1
+
         line_sum = 0
         for line in strs.split('\n'):
             cls = line.split('\t')
@@ -273,7 +317,13 @@ def prescreen_frequence(anvfile):
 
                 if flip_freq(freq_dic['esp6500siv2_all'],
                              freq_dic['1000g2015aug_all'],
-                             freq_dic['ExAC_ALL'], freq_dic['AF_popmax']):
+                             freq_dic['ExAC_ALL'],
+                             freq_dic['AF_popmax']) and flip_genotype(
+                                 cls[Gene_flgs['Otherinfo']],
+                                 cls[Gene_flgs['Gene.refGene']],
+                                 cls[Gene_flgs['Func.refGene']],
+                                 cls[Gene_flgs['ExonicFunc.refGene']],
+                                 compound_dict):
                     fw.write(line + '\n')
 
                 # if flip_freq(cls[Freqs_flgs['esp6500siv2_all']],
@@ -305,6 +355,36 @@ def prescreen_annovar_result():
             paras['outfile'] + "*." + paras['buildver'] +
             "_multianno.txt"):  # 在目录下搜索指定匹配模式文件，*代表任意0到多字符
         prescreen_frequence(annovar_outfile)
+
+
+def read_datasets():
+    # triplet_OmimGeneGenotype
+    try:
+        fh = open(paras['triplet'], "r")
+        strs = fh.read()
+        for line2 in strs.split('\n'):
+            cls2 = line2.split('\t')
+            if len(cls2) > 1:
+                if not triplet_dict.__contains__((cls2[0], cls2[3])):
+                    triplet_dict[(cls2[0], cls2[3])] = set()
+                    triplet_dict[(cls2[0], cls2[3])].add(cls2[2])
+                else:
+                    triplet_dict[(cls2[0], cls2[3])].add(cls2[2])
+
+                if not triplet_dict.__contains__((cls2[0], '.')):
+                    triplet_dict[(cls2[0], '.')] = set()
+                    triplet_dict[(cls2[0], '.')].add(cls2[2])
+                else:
+                    triplet_dict[(cls2[0], '.')].add(cls2[2])
+
+    except IOError:
+        print("Error: can\'t read the triplet_OmimGeneGenotype file %s" %
+              paras['triplet'])
+        print("Error: Please download it from the source website")
+        sys.exit()
+        return
+    else:
+        fh.close()
 
 
 ########### 读取输入的phenotype文件中的表型HPO ###########
@@ -595,7 +675,8 @@ def main():
         "The prefix of output file which contains the results, the file of results will be as [$$prefix].gps ",
         metavar="test/testNjob1")
 
-    group = optparse.OptionGroup(parser, "Database location Options",
+    group = optparse.OptionGroup(
+        parser, "Database location Options",
         "Caution: check these options from manual of INTERVAR. The INTERVAR version should be >=  2019-03-27, older verions of INTERVAR will bring problems."
     )
     group.add_option(
@@ -647,7 +728,6 @@ def main():
                      help="The Annovar perl script of annotate_variation.pl",
                      metavar="./annotate_variation.pl",
                      dest="annotate_variation")
-    
 
     group.add_option(
         "--skip_annovar",
@@ -719,7 +799,6 @@ def main():
         paras['database_intervar'] = options.database_intervar
     if options.database_annovar != None:
         paras['database_annovar'] = options.database_annovar
-    
 
     paras['skip_annovar'] = False
 
