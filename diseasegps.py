@@ -6,7 +6,7 @@
 # Last Change:.
 # Description: python script for  diagnosing genetic diseases
 #########################################################################
-import os, re, time, sys, platform, optparse, glob
+import os, re, time, sys, platform, optparse, glob, json
 
 prog = "diseasegps"
 
@@ -244,7 +244,7 @@ def prescreen_frequence(anvfile):
     for dbfreq in dfreqs.split():
         Freqs_flgs[dbfreq] = 0
     Gene_flgs = {
-        'Otherinfo': 0,
+        'Otherinfo1': 0,
         'Gene.refGene': 0,
         'ExonicFunc.refGene': 0,
         'Func.refGene': 0
@@ -267,9 +267,40 @@ def prescreen_frequence(anvfile):
             cls = line.split('\t')
             if len(cls) < 2: break
             if line_sum == 0:
+                line = line.replace('AF\t', 'gnomAD_genome_ALL\t')
+                line = line.replace('AF_afr', 'gnomAD_genome_AFR')
+                line = line.replace('AF_amr', 'gnomAD_genome_AMR')
+                line = line.replace('AF_eas', 'gnomAD_genome_EAS')
+                line = line.replace('AF_fin', 'gnomAD_genome_FIN')
+                line = line.replace('AF_nfe', 'gnomAD_genome_NFE')
+                line = line.replace('AF_oth', 'gnomAD_genome_OTH')
+                line = line.replace('AF_asj', 'gnomAD_genome_ASJ')
+                line = line.replace('CLNDN', 'CLNDBN')
+                line = line.replace('CLNACC', 'CLNALLELEID')
+                line = line.replace('CLNDSDB', 'CLNDISDB')
+                line = line.replace('phyloP100way_vertebrate',
+                                    'phyloP46way_placental')
+                line = line.replace('avsnp150', 'avsnp147')
                 search_key_index(line, Gene_flgs)
+                search_key_index(line, Freqs_flgs)
             else:
+                freq_dic = {
+                    'esp6500siv2_all': 0,
+                    '1000g2015aug_all': 0,
+                    'ExAC_ALL': 0,
+                    'AF_popmax': 0
+                }
+                for k in Freqs_flgs.keys():
+                    freq_dic[k] = cls[Freqs_flgs[k]]
+
                 for gene in cls[Gene_flgs['Gene.refGene']].split(';'):
+                    # if flip_freq(
+                    #         freq_dic['esp6500siv2_all'],
+                    #         freq_dic['1000g2015aug_all'], freq_dic['ExAC_ALL'],
+                    #         freq_dic['AF_popmax']
+                    # ) and cls[Gene_flgs['Func.refGene']] != 'intronic' and cls[
+                    #         Gene_flgs[
+                    #             'ExonicFunc.refGene']] != 'synonymous SNV':
                     if cls[Gene_flgs['Func.refGene']] != 'intronic' and cls[
                             Gene_flgs[
                                 'ExonicFunc.refGene']] != 'synonymous SNV':
@@ -288,20 +319,6 @@ def prescreen_frequence(anvfile):
             if len(cls) < 2: break
             if line_sum == 0:
                 search_key_index(line, Freqs_flgs)
-                line = line.replace('AF\t', 'gnomAD_genome_ALL\t')
-                line = line.replace('AF_afr', 'gnomAD_genome_AFR')
-                line = line.replace('AF_amr', 'gnomAD_genome_AMR')
-                line = line.replace('AF_eas', 'gnomAD_genome_EAS')
-                line = line.replace('AF_fin', 'gnomAD_genome_FIN')
-                line = line.replace('AF_nfe', 'gnomAD_genome_NFE')
-                line = line.replace('AF_oth', 'gnomAD_genome_OTH')
-                line = line.replace('AF_asj', 'gnomAD_genome_ASJ')
-                line = line.replace('CLNDN', 'CLNDBN')
-                line = line.replace('CLNACC', 'CLNALLELEID')
-                line = line.replace('CLNDSDB', 'CLNDISDB')
-                line = line.replace('phyloP100way_vertebrate',
-                                    'phyloP46way_placental')
-                line = line.replace('avsnp150', 'avsnp147')
                 fw.write(line + '\n')
                 line_sum += 1
 
@@ -319,7 +336,7 @@ def prescreen_frequence(anvfile):
                              freq_dic['1000g2015aug_all'],
                              freq_dic['ExAC_ALL'],
                              freq_dic['AF_popmax']) and flip_genotype(
-                                 cls[Gene_flgs['Otherinfo']],
+                                 cls[Gene_flgs['Otherinfo1']],
                                  cls[Gene_flgs['Gene.refGene']],
                                  cls[Gene_flgs['Func.refGene']],
                                  cls[Gene_flgs['ExonicFunc.refGene']],
@@ -388,25 +405,57 @@ def read_datasets():
 
 
 ########### 读取输入的phenotype文件中的表型HPO ###########
-def check_hpoterms():
-    if not os.path.isfile(paras['phenotype']):
+def check_hpoterms(phenotype_input):
+    if not os.path.isfile(paras[phenotype_input]):
         print(
             "Warning: The hpoterms file [ %s ] is not here, please input the correct hpoterms file"
-            % paras['phenotype'])
+            % paras[phenotype_input])
         sys.exit()
-    sample = set()
-    with open(paras['phenotype'], 'r') as f:
-        hpoterms = f.readlines()
-        for hp_tmp in hpoterms:
-            hp_tmp = hp_tmp.strip()
-            m1 = re.match('HP:\d{7}', hp_tmp)
-            if m1 is not None:
-                sample.add(hp_tmp)
+    if phenotype_input == "phenotype":
+        sample = set()
+        with open(paras['phenotype'], 'r') as f:
+            hpoterms = f.readlines()
+            for hp_tmp in hpoterms:
+                hp_tmp = hp_tmp.strip()
+                m1 = re.match('HP:\d{7}', hp_tmp)
+                if m1 is not None:
+                    sample.add(hp_tmp)
+    elif phenotype_input == "phenopackets":
+        sample = set()
+        try:
+            with open(paras['phenopackets'], 'r') as f:
+                phenopackets_data = json.load(f)
+                patients_data = phenopackets_data.get('subjects', [])
+                num_patients = len(patients_data)
+                if num_patients == 0:
+                    print(
+                        "Error: Phenopackets file does not contain any patients."
+                    )
+                    sys.exit()
+                elif num_patients >= 2:
+                    print(
+                        "Error: Phenopackets file contains more than one patient."
+                    )
+                    sys.exit()
+                else:
+                    target_patient_data = patients_data[0]
+                    target_patient_id = target_patient_data.get('id')
+                    for phenotypic_feature in target_patient_data.get(
+                            'phenotypicFeatures', []):
+                        if not phenotypic_feature.get('excluded', False):
+                            hpo_term = phenotypic_feature.get('type')
+                            if hpo_term:
+                                sample.add(hpo_term)
+        except json.JSONDecodeError:
+            print(
+                "Error: Unable to load Phenopackets file. Please check if the file is a valid JSON."
+            )
+            sys.exit()
 
     if len(sample) == 0:
         print(
-            "Warning: The hpoterms file [ %s ] don't meet specifications, please enter one HPOterm per line"
-            % paras['phenotype'])
+            "Warning: The hpoterms file [ %s ] don't meet specifications. if phenotype file please enter one HPOterm per line. if phenopackets file please input a standard format phenopackets file containing only one patient"
+            % paras[phenotype_input])
         sys.exit()
     else:
         return sample
@@ -659,6 +708,15 @@ def main():
         metavar="test/testNjob1_hpo.txt")
 
     parser.add_option(
+        "-k",
+        "--phenopackets",
+        dest="phenopackets",
+        action="store",
+        help=
+        "The input file is a JSON file in the Phenokackets format and can only contain data for one patient",
+        metavar=None)
+
+    parser.add_option(
         "--input_type",
         dest="input_type",
         action="store",
@@ -780,6 +838,11 @@ def main():
                 "Error: The config file [ %s ] is not here,please check the path of your config file."
                 % options.config)
             sys.exit()
+    if options.phenotype != None and options.phenopackets != None:
+        print(
+            "Error: The phenotype file and the phenopackets file cannot be inputted simultaneously"
+        )
+        sys.exit()
 
     if options.buildver != None:
         paras['buildver'] = options.buildver
@@ -791,6 +854,10 @@ def main():
         paras['inputfile_type'] = options.input_type
     if options.phenotype != None:
         paras['phenotype'] = options.phenotype
+        phenotype_input = "phenotype"
+    if options.phenopackets != None:
+        paras['phenopackets'] = options.phenopackets
+        phenotype_input = "phenopackets"
     if options.output != None:
         paras['outfile'] = options.output
     if options.database_gps != None:
@@ -838,16 +905,16 @@ def main():
             "Error: Your input file [ %s ] is not here,please check the path of your input file."
             % paras['inputfile'])
         sys.exit()
-    if not os.path.isfile(paras['phenotype']):
+    if not os.path.isfile(paras[phenotype_input]):
         print(
             "Error: Your phenotype file [ %s ] is not here,please check the path of your input file."
-            % paras['phenotype'])
+            % paras[phenotype_input])
         sys.exit()
 
     print("INFO: The options are %s " % paras)
     check_downdb()
     check_input()
-    hpoterms = check_hpoterms()
+    hpoterms = check_hpoterms(phenotype_input)
 
     if options.skip_annovar != True:
         check_annovar_result()  #  to obtain myanno.hg19_multianno.csv
@@ -858,6 +925,7 @@ def main():
         print(
             "Warning: The diseasegps will interpret the variants based on your old annotation information!"
         )
+    read_datasets()
 
     prescreen_annovar_result()
     check_intervar_result()  # to obtain .txt.intervar

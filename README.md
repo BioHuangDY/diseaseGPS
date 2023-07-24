@@ -17,6 +17,7 @@ diseaseGPS is a python script for diagnosis of genetic diseases based on genes a
 ├── intervardb
 ├── humandb
 ├── test
+├── example
 ├── gpsdb
 ├─── config_gps.ini
 ├─── README.md
@@ -103,6 +104,10 @@ if you use this options,you can ignore all the other options bellow.
 * **-p test/testNjob1_hpo.txt,  --phenotype=test/testNjob1_hpo.txt**
 
   * The input file contains your hpoterms separated by "\n" , which means one hpo term per line.
+
+* **-k test/testNjob1_hpo.json,  --phenopackets=test/testNjob1_hpo.json**
+
+  * The phenopackets formatted phenotype input file. The file can only contain information for one patient and cannot be used simultaneously with the "-p" option.
 
 * **--input_type=VCF**      
 
