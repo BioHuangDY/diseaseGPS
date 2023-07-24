@@ -294,16 +294,16 @@ def prescreen_frequence(anvfile):
                     freq_dic[k] = cls[Freqs_flgs[k]]
 
                 for gene in cls[Gene_flgs['Gene.refGene']].split(';'):
-                    # if flip_freq(
-                    #         freq_dic['esp6500siv2_all'],
-                    #         freq_dic['1000g2015aug_all'], freq_dic['ExAC_ALL'],
-                    #         freq_dic['AF_popmax']
-                    # ) and cls[Gene_flgs['Func.refGene']] != 'intronic' and cls[
-                    #         Gene_flgs[
-                    #             'ExonicFunc.refGene']] != 'synonymous SNV':
-                    if cls[Gene_flgs['Func.refGene']] != 'intronic' and cls[
+                    if flip_freq(
+                            freq_dic['esp6500siv2_all'],
+                            freq_dic['1000g2015aug_all'], freq_dic['ExAC_ALL'],
+                            freq_dic['AF_popmax']
+                        ) and cls[Gene_flgs['Func.refGene']] != 'intronic' and cls[
                             Gene_flgs[
                                 'ExonicFunc.refGene']] != 'synonymous SNV':
+                    # if cls[Gene_flgs['Func.refGene']] != 'intronic' and cls[
+                    #         Gene_flgs[
+                    #             'ExonicFunc.refGene']] != 'synonymous SNV':
                         if not compound_dict.__contains__(gene):
                             compound_dict[gene] = 1
                         else:
